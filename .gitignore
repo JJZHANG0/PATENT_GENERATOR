@@ -1,0 +1,9 @@
+qa/
+*.tar.gz
+.DS_Store
+node_modules/
+
+.openai/
+outputs/
+*-备份.json
+课题备份.json
