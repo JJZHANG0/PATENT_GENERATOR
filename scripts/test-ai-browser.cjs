@@ -42,7 +42,8 @@ const draft = {summary:'整理了测试技术材料',recommendedType:'invention'
   await page.locator('.editor-top [data-ai=start]').click();
   await page.locator('#ai-files').setInputFiles([{name:'交底.txt',mimeType:'text/plain',buffer:Buffer.from('装置包括外壳和探头。')},{name:'实验.txt',mimeType:'text/plain',buffer:Buffer.from('测试条件尚未补充。')}]);
   assert.equal(await page.locator('.ai-file').count(),2);
-  await page.locator('#ai-consent').check();await page.getByRole('button',{name:'生成专利建议稿 →',exact:true}).click();
+  assert.equal(await page.locator('#ai-output').inputValue(),'package');await page.locator('#ai-output').selectOption('review');
+  await page.locator('#ai-consent').check();await page.getByRole('button',{name:'开始整理并生成 →',exact:true}).click();
   await page.getByRole('heading',{name:'专利建议稿，等你确认'}).waitFor();
   assert.equal(posts,1);assert.equal(lastAuthorization,'Bearer '+fakeKey);
   assert.equal(await page.locator('[data-ai-select=title]').isChecked(),false);assert.equal(await page.locator('[data-ai-select=solution]').isChecked(),false);
@@ -67,9 +68,9 @@ const draft = {summary:'整理了测试技术材料',recommendedType:'invention'
   await page.locator('[data-ai=settings]').click();assert.equal(await page.locator('#ai-key').inputValue(),'');
   await page.locator('#ai-key').fill(secondKey);await page.locator('#ai-model').selectOption('gpt-6.2-astra');await page.locator('#ai-settings button[type=submit]').click();await page.locator('#ai-dialog').waitFor({state:'hidden'});
   assert.equal(posts,1);
-  failStatus=401;await page.locator('.editor-top [data-ai=start]').click();await page.locator('#ai-files').setInputFiles({name:'交底.txt',mimeType:'text/plain',buffer:Buffer.from('测试材料')});await page.locator('#ai-consent').check();await page.getByRole('button',{name:'生成专利建议稿 →',exact:true}).click();await page.getByRole('heading',{name:'本次生成未完成'}).waitFor();
+  failStatus=401;await page.locator('.editor-top [data-ai=start]').click();await page.locator('#ai-files').setInputFiles({name:'交底.txt',mimeType:'text/plain',buffer:Buffer.from('测试材料')});await page.locator('#ai-consent').check();await page.getByRole('button',{name:'开始整理并生成 →',exact:true}).click();await page.getByRole('heading',{name:'请求未完成'}).waitFor();
   assert.equal(lastAuthorization,'Bearer '+secondKey);assert(!(await page.locator('#ai-dialog').innerText()).includes('provider-private-error'));
-  await page.getByRole('button',{name:'返回填写',exact:true}).click();
+  await page.locator('#ai-dialog [data-ai=close]').click();
   await page.locator('[data-ai=settings]').click();await page.getByRole('button',{name:'清除 Key',exact:true}).click();assert.equal(await page.locator('#ai-key').inputValue(),'');
   await page.locator('#ai-dialog [data-ai=close]').click();await page.locator('[data-ai=settings]').click();await page.locator('#ai-key').fill(fakeKey);await page.locator('#ai-settings button[type=submit]').click();
   await page.reload();await page.locator('[data-ai=settings]').filter({hasText:'AI 密钥'}).waitFor();

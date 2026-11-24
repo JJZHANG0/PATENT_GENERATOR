@@ -7,9 +7,9 @@
 1. 点击“上传材料 · AI 整理”或右上角“AI 密钥”。
 2. 在网站密码输入框填自己的完整 OpenAI secret（以 `sk-` 开头）。`key_…` tracking ID 不能调用 API。遗失 secret 时，需要在自己的 OpenAI 账户中新建。
 3. 默认使用 GPT-6.2 Sol（专利整理）；可选 GPT-6.2 Astra（复杂材料，费用较高），并保留 GPT-5.4 mini（经济方案）和 GPT-5.4（备选）。具体可用性以自己的 API 项目权限为准，失败时不会自动换模型。保存设置不会调用 API。
-4. 上传技术材料，确认材料使用授权后，点击“生成专利建议稿”。
-5. 核对来源线索、待补问题和每个字段，再勾选采纳；已有内容默认不替换。
-6. 补齐人员和附图，按原有步骤导出 Word。
+4. 上传技术材料，确认材料使用授权后，点击“开始整理并生成”。
+5. 默认直接下载 Word 材料包，同时另存一份专利；原稿不覆盖。材料不足时输出带待补清单的草稿包，不编造人员、实验或附图。
+6. 如需逐项选择，可在上传页面将生成方式改为“先逐项审阅，再自行导出”。
 
 ## 数据与密钥
 
@@ -30,9 +30,9 @@ AI 整理名称、技术领域、背景技术、技术问题、技术方案、�
 - 401：Key 无效或过期，更换完整 secret。
 - 403：账户、地区、项目或模型权限不可用。
 - 404：所选模型不存在或当前 Key 无访问权限，请检查项目或手动更换模型。
-- 429：余额不足或调用过于频繁，检查自己的 OpenAI API 账单及额度。
+- 429：按返回代码区分 `credit_balance_exhausted`（预付余额）、`project_spend_limit_exceeded`（项目上限）、`organization_spend_limit_exceeded`（组织上限）、`organization_usage_limit_exceeded`（获批用量）、`insufficient_quota`（尚需核对的额度问题）与 `rate_limit_exceeded` / `slow_down`（临时限流）。未知原因不推断成余额不足。错误卡片可下载 HTTP 状态、分类代码与请求编号；不包含 Key、原始错误文本或上传内容。
 - 网络失败：检查浏览器能否访问 OpenAI API；本工具没有代理中转。
-- 超时或输出不完整（单次最多等待 5 分钟）：减少文件或缩小课题范围。已发出的请求即使取消或失败，也可能产生用量；不会自动重试。
+- 超时或输出不完整（单次最多等待 5 分钟）：减少文件或缩小课题范围。已发出的请求即使取消或失败，也可能产生用量；仅已识别的临时限流在 Retry-After 不超过 30 秒时重试一次；计费、额度、过大请求和未知错误不自动重试。
 
 ## 开发与发布
 
@@ -43,3 +43,7 @@ AI 整理名称、技术领域、背景技术、技术问题、技术方案、�
 官方说明：[API Key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key)、[文件输入](https://developers.openai.com/api/docs/guides/file-inputs)、[结构化输出](https://developers.openai.com/api/docs/guides/structured-outputs)。
 
 模型依据（2026-11-24 核对）：[GPT-6.2 Sol](https://developers.openai.com/api/docs/models/gpt-6.2-sol)、[GPT-6.2 Astra](https://developers.openai.com/api/docs/models/gpt-6.2-astra)。两者支持 Responses、图片输入和结构化输出；本工具使用 medium reasoning。
+
+默认自动导出按现有模板生成适用的请求书、权利要求书、说明书、摘要；已有正式附图时附说明书附图和摘要附图，申请类型/选项需要时附其他文书。缺少的技术附图不会伪造，写入待补清单。ZIP 同时包含 AI 整理依据和 JSON 备份。Word 打包失败可保留 AI 结果重新打包，不再次调用 API。
+
+429 分类依据：[OpenAI 错误码](https://developers.openai.com/api/docs/guides/error-codes)。旧版没有保留具体错误体，不能仅根据旧截图追溯某次 429 的确切原因。

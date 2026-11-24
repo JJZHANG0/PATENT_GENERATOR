@@ -24,6 +24,7 @@ jobs:
           node --check dist/export.js
           node --check dist/ai.js
           node --check dist/ai-fields.js
+          node --check dist/ai-package.js
           node --check dist/ai-core.mjs
           node --check dist/ai-prompt.mjs
           node scripts/test-validation.cjs
