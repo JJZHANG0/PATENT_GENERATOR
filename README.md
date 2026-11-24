@@ -50,6 +50,8 @@
 
 首页点击“上传材料 · AI 整理”，输入自己的 OpenAI API Key 后，可上传 1–8 份 PDF、DOCX、PPTX、TXT、MD 或图片。AI 整理九类专利技术字段，并列出来源线索、待补问题与类型建议。逐项审阅并勾选后才写入已有表单；已有内容默认不替换。
 
+默认使用 GPT-6.2 Sol，可选择 GPT-6.2 Astra、GPT-5.4 mini 或 GPT-5.4；需要自己的 API Key 具备所选模型权限。
+
 无需注册登录，也无需 Supabase、后台或插件授权。API 费用由使用者自己的 OpenAI 账号承担。Key 只留在当前页面内存，不写入 IndexedDB、localStorage、sessionStorage 或 JSON 备份；刷新、关闭或点击“清除 Key”后重新填写。只在信任的设备和页面输入自己的 Key。浏览器必须能够访问 OpenAI API。
 
 文件直接发送至 `https://api.openai.com/v1/responses`；没有工坊中转服务。使用 `store:false`，服务商的数据保留以其账户政策为准。不要将真实 Key 写入源码或公开仓库。

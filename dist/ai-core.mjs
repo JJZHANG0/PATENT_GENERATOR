@@ -98,9 +98,9 @@ export function validateKey(key) {
   return key;
 }
 
-export async function requestDraft({apiKey, input, model = 'gpt-5.4-mini', signal, fetchImpl = fetch}) {
+export async function requestDraft({apiKey, input, model = 'gpt-6.2-sol', signal, fetchImpl = fetch}) {
   validateKey(apiKey);
-  if (!['gpt-5.4-mini', 'gpt-5.4'].includes(model)) throw new Error('请选择支持的模型。');
+  if (!['gpt-6.2-sol', 'gpt-6.2-astra', 'gpt-5.4-mini', 'gpt-5.4'].includes(model)) throw new Error('请选择支持的模型。');
   const validated = validateInput(input);
   const response = await fetchImpl('https://api.openai.com/v1/responses', {
     method: 'POST', headers: {Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json'},
@@ -111,6 +111,7 @@ export async function requestDraft({apiKey, input, model = 'gpt-5.4-mini', signa
     await response.body?.cancel();
     if (response.status === 401) throw new Error('API Key 无效或已过期，请在“AI 密钥”中更换完整 secret。');
     if (response.status === 403) throw new Error('你的 OpenAI 账号、所在地区或项目暂无此模型的访问权限。');
+    if (response.status === 404) throw new Error('当前 API Key 无法访问所选模型，请检查项目权限或在“AI 密钥”中选择其他模型。');
     if (response.status === 429) throw new Error('你的 API 余额不足或调用过于频繁，请检查 OpenAI 额度后重试。');
     if (response.status === 400) throw new Error('OpenAI 无法处理本次材料或模型请求。请检查文件是否加密、损坏或过长，必要时转成 PDF。');
     throw new Error('OpenAI 服务暂不可用，请稍后重试。');

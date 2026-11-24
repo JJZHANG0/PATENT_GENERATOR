@@ -4,7 +4,7 @@
   const $ = s => document.querySelector(s);
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const types = {pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',txt:'text/plain',md:'text/markdown',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg'};
-  let adapter, apiKey = '', model = 'gpt-5.4-mini', resumeUpload = false, selectedFiles = [], pending = null, controller = null, busy = false, targetId = null, baseline = null;
+  let adapter, apiKey = '', model = 'gpt-6.2-sol', resumeUpload = false, selectedFiles = [], pending = null, controller = null, busy = false, targetId = null, baseline = null;
   function dialog() { return $('#ai-dialog'); }
   function error(message) { const el = $('#ai-error'); if (el) { el.textContent = message; el.focus(); } }
   function show(html) {
@@ -21,7 +21,7 @@
   }
   function settingsPanel(continueUpload = false) {
     resumeUpload = continueUpload;
-    show(`<h2>使用自己的 OpenAI Key</h2><p>无需注册工坊账号。每位使用者填写自己的 Key，API 费用由各自的 OpenAI 账号承担。</p><form id="ai-settings"><div class="field"><label for="ai-key">OpenAI API Key</label><input id="ai-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="600" placeholder="${apiKey ? '已配置；留空保留当前 Key，输入可更换' : '粘贴以 sk- 开头的完整 secret'}" ${apiKey ? '' : 'required'}><small>需要完整 secret；key_ 开头的 tracking ID 无法使用。</small></div><div class="field"><label for="ai-model">生成模型</label><select id="ai-model"><option value="gpt-5.4-mini" ${model === 'gpt-5.4-mini' ? 'selected' : ''}>GPT-5.4 mini · 日常整理</option><option value="gpt-5.4" ${model === 'gpt-5.4' ? 'selected' : ''}>GPT-5.4 · 深入起草</option></select></div><div class="ai-info">Key 仅在当前页面内存中使用，刷新或关闭后清除，不写入草稿、备份或浏览器存储。文件由你的浏览器直接发送到 OpenAI，不经过工坊后台。请只在你信任的设备和此工坊页面输入自己的 Key。</div><p class="ai-muted">保存设置不会发起 API 请求。只有点击“生成专利建议稿”时才会使用额度。</p><div class="actions">${apiKey ? '<button type="button" class="btn" data-ai="clear-key">清除 Key</button>' : ''}<a class="btn" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">管理自己的 Key</a><button class="btn primary" type="submit">${continueUpload ? '使用此 Key，继续上传' : '仅本次使用'}</button></div></form>`);
+    show(`<h2>使用自己的 OpenAI Key</h2><p>无需注册工坊账号。每位使用者填写自己的 Key，API 费用由各自的 OpenAI 账号承担。</p><form id="ai-settings"><div class="field"><label for="ai-key">OpenAI API Key</label><input id="ai-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="600" placeholder="${apiKey ? '已配置；留空保留当前 Key，输入可更换' : '粘贴以 sk- 开头的完整 secret'}" ${apiKey ? '' : 'required'}><small>需要完整 secret；key_ 开头的 tracking ID 无法使用。</small></div><div class="field"><label for="ai-model">生成模型</label><select id="ai-model"><option value="gpt-6.2-sol" ${model === 'gpt-6.2-sol' ? 'selected' : ''}>GPT-6.2 Sol · 专利整理（推荐）</option><option value="gpt-6.2-astra" ${model === 'gpt-6.2-astra' ? 'selected' : ''}>GPT-6.2 Astra · 复杂材料（费用较高）</option><option value="gpt-5.4-mini" ${model === 'gpt-5.4-mini' ? 'selected' : ''}>GPT-5.4 mini · 经济方案</option><option value="gpt-5.4" ${model === 'gpt-5.4' ? 'selected' : ''}>GPT-5.4 · 备选模型</option></select><small>模型能否调用取决于你自己的 API 账号权限和额度；工坊不会自动切换到其他模型。</small></div><div class="ai-info">Key 仅在当前页面内存中使用，刷新或关闭后清除，不写入草稿、备份或浏览器存储。文件由你的浏览器直接发送到 OpenAI，不经过工坊后台。请只在你信任的设备和此工坊页面输入自己的 Key。</div><p class="ai-muted">保存设置不会发起 API 请求。只有点击“生成专利建议稿”时才会使用额度。</p><div class="actions">${apiKey ? '<button type="button" class="btn" data-ai="clear-key">清除 Key</button>' : ''}<a class="btn" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">管理自己的 Key</a><button class="btn primary" type="submit">${continueUpload ? '使用此 Key，继续上传' : '仅本次使用'}</button></div></form>`);
   }
   async function saveSettings() {
     const field = $('#ai-key'), nextKey = field.value.trim();
@@ -88,8 +88,8 @@
     baseline = fields.snapshot(project);
     busy = true; controller = new AbortController();
     const activeController = controller;
-    const timeout = setTimeout(() => activeController.abort(), 130000);
-    show(`<div class="ai-progress"><div class="ai-spinner"></div><h2>正在读取材料</h2><p id="ai-progress-text" role="status" aria-live="polite">准备上传所选文件…</p><p>AI 将梳理技术方案、起草字段并整理依据。完成后由你逐项审阅。</p><button class="btn" data-ai="cancel">取消本次生成</button></div>`);
+    const timeout = setTimeout(() => activeController.abort(), 300000);
+    show(`<div class="ai-progress"><div class="ai-spinner"></div><h2>正在读取材料</h2><p id="ai-progress-text" role="status" aria-live="polite">准备上传所选文件…</p><p>AI 将梳理技术方案、起草字段并整理依据。复杂材料可能需要数分钟，完成后由你逐项审阅。</p><button class="btn" data-ai="cancel">取消本次生成</button></div>`);
     try {
       const files = await Promise.all(selectedFiles.map(readFile));
       const {requestDraft} = await import('./ai-core.mjs');

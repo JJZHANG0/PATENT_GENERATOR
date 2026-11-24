@@ -18,7 +18,7 @@ const draft = {summary:'整理了测试技术材料',recommendedType:'invention'
     if(r.method()==='OPTIONS')return route.fulfill({status:204,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'*'}});
     posts++;assert.equal(r.url(),'https://api.openai.com/v1/responses');
     lastAuthorization=r.headers().authorization;
-    const body=JSON.parse(r.postData());assert.equal(body.store,false);assert.equal(body.text.format.strict,true);
+    const body=JSON.parse(r.postData());assert.equal(body.store,false);assert.equal(body.model,posts===1?'gpt-6.2-sol':'gpt-6.2-astra');assert.equal(body.text.format.strict,true);
     assert(!r.postData().includes(fakeKey));
     if(failStatus)return route.fulfill({status:failStatus,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify({error:{message:'provider-private-error'}})});
     assert.equal(body.input[0].content.length,3);
@@ -28,7 +28,7 @@ const draft = {summary:'整理了测试技术材料',recommendedType:'invention'
   assert.equal(await page.getByText('队伍登录',{exact:true}).count(),0);
   await page.locator('.ai-entry button').click();
   await page.getByRole('heading',{name:'使用自己的 OpenAI Key'}).waitFor();
-  assert.equal(await page.locator('#ai-key').getAttribute('type'),'password');
+  assert.equal(await page.locator('#ai-key').getAttribute('type'),'password');assert.equal(await page.locator('#ai-model').inputValue(),'gpt-6.2-sol');assert.equal(await page.locator('#ai-model option').count(),4);
   await page.screenshot({path:'qa/ai-personal-settings.png'});
   await page.locator('#ai-key').fill('key_tracking_example');await page.locator('#ai-settings button[type=submit]').click();
   await page.locator('#ai-error').filter({hasText:'tracking ID'}).waitFor();assert.equal(posts,0);
@@ -65,7 +65,7 @@ const draft = {summary:'整理了测试技术材料',recommendedType:'invention'
   });
   assert(!storage.includes(fakeKey));console.log('PASS Word export, no Key in backup or browser storage');
   await page.locator('[data-ai=settings]').click();assert.equal(await page.locator('#ai-key').inputValue(),'');
-  await page.locator('#ai-key').fill(secondKey);await page.locator('#ai-model').selectOption('gpt-5.4');await page.locator('#ai-settings button[type=submit]').click();await page.locator('#ai-dialog').waitFor({state:'hidden'});
+  await page.locator('#ai-key').fill(secondKey);await page.locator('#ai-model').selectOption('gpt-6.2-astra');await page.locator('#ai-settings button[type=submit]').click();await page.locator('#ai-dialog').waitFor({state:'hidden'});
   assert.equal(posts,1);
   failStatus=401;await page.locator('.editor-top [data-ai=start]').click();await page.locator('#ai-files').setInputFiles({name:'交底.txt',mimeType:'text/plain',buffer:Buffer.from('测试材料')});await page.locator('#ai-consent').check();await page.getByRole('button',{name:'生成专利建议稿 →',exact:true}).click();await page.getByRole('heading',{name:'本次生成未完成'}).waitFor();
   assert.equal(lastAuthorization,'Bearer '+secondKey);assert(!(await page.locator('#ai-dialog').innerText()).includes('provider-private-error'));
