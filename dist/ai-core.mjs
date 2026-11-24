@@ -1,6 +1,5 @@
-import {buildRequest, FIELD_LABELS} from './prompt.mjs';
+import {buildRequest, FIELD_LABELS} from './ai-prompt.mjs';
 
-export const MAX_BODY = 22 * 1024 * 1024;
 export const TYPES = {
   pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
@@ -92,71 +91,37 @@ export function validateOutput(raw, input) {
   return result;
 }
 
-async function readJSON(request) {
-  if (!request.headers.get('content-type')?.startsWith('application/json')) throw new HttpError(415, '请求必须使用 JSON。');
-  if (Number(request.headers.get('content-length')) > MAX_BODY) throw new HttpError(413, '上传内容过大。');
-  if (!request.body) fail('缺少上传内容。');
-  const reader = request.body.getReader(), chunks = [];
-  let count = 0;
-  while (true) {
-    const {done, value} = await reader.read();
-    if (done) break;
-    count += value.byteLength;
-    if (count > MAX_BODY) { await reader.cancel(); throw new HttpError(413, '上传内容过大。'); }
-    chunks.push(value);
+export function validateKey(key) {
+  if (typeof key !== 'string' || !/^sk-[A-Za-z0-9_-]{10,}$/.test(key) || key.length > 600) {
+    throw new Error('请填写以 sk- 开头的完整 OpenAI API Key；key_ 开头的 tracking ID 不能调用 API。');
   }
-  const bytes = new Uint8Array(count);
-  let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-  try { return JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(bytes)); }
-  catch { fail('上传内容不是有效 JSON。'); }
+  return key;
 }
 
-export function createHandler({authenticate, reserveQuota, apiKey, model = 'gpt-5.4-mini', allowedOrigins, fetchImpl = fetch}) {
-  return async request => {
-    const origin = request.headers.get('origin');
-    const headers = {'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Vary': 'Origin'};
-    if (origin && !allowedOrigins.includes(origin)) return new Response(JSON.stringify({error: '此网站未获准访问工坊后台。'}), {status: 403, headers});
-    if (origin) headers['Access-Control-Allow-Origin'] = origin;
-    headers['Access-Control-Allow-Headers'] = 'authorization, apikey, content-type';
-    headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
-    if (request.method === 'OPTIONS') return new Response(null, {status: 204, headers});
-    try {
-      if (!['GET', 'POST'].includes(request.method)) throw new HttpError(405, '不支持此请求方式。');
-      const bearer = request.headers.get('authorization') || '';
-      if (!/^Bearer \S+$/i.test(bearer)) throw new HttpError(401, '请先使用队伍账号登录。');
-      const account = await authenticate(bearer);
-      if (!account?.userId) throw new HttpError(401, '登录已失效，请重新登录。');
-      if (request.method === 'GET') return new Response(JSON.stringify({account}), {headers});
-      if (!apiKey?.startsWith('sk-')) throw new HttpError(503, '工坊尚未配置 AI 密钥，请联系管理员。');
-      const input = validateInput(await readJSON(request));
-      const quota = await reserveQuota(account.userId);
-      // Count every upstream attempt, including errors/cancellation, to bound costs.
-      const response = await fetchImpl('https://api.openai.com/v1/responses', {
-        method: 'POST', headers: {Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json'},
-        body: JSON.stringify(buildRequest(input, model)), signal: AbortSignal.timeout(110000),
-      });
-      if (!response.ok) {
-        await response.body?.cancel();
-        if (response.status === 429) throw new HttpError(429, 'AI 服务额度或调用频率受限，请稍后重试或联系管理员。');
-        if ([401, 403].includes(response.status)) throw new HttpError(503, 'AI 密钥或模型权限不可用，请联系管理员。');
-        if (response.status === 400) throw new HttpError(422, 'AI 无法处理本次材料，请检查文件是否加密、损坏或过长，并尝试转为 PDF。');
-        throw new HttpError(502, 'AI 服务暂不可用，请稍后重试。');
-      }
-      const output = await response.json();
-      if (output.status !== 'completed') throw new HttpError(502, 'AI 输出未完成，请减少文件或缩小课题范围后重试。');
-      const parts = (output.output || []).flatMap(o => o.content || []);
-      if (parts.some(p => p.type === 'refusal')) throw new HttpError(422, 'AI 未能处理本次材料，请核对材料内容后重试。');
-      let raw;
-      try { raw = JSON.parse(parts.filter(p => p.type === 'output_text').map(p => p.text).join('')); }
-      catch { throw new HttpError(502, 'AI 返回格式异常，请稍后重试。'); }
-      return new Response(JSON.stringify({draft: validateOutput(raw, input), quota}), {headers});
-    } catch (error) {
-      const timedOut = ['TimeoutError', 'AbortError'].includes(error?.name);
-      const status = error instanceof HttpError ? error.status : timedOut ? 504 : 500;
-      const message = error instanceof HttpError ? error.message : timedOut ? 'AI 处理超时，请减少文件后重试。' : '后台处理未完成，请稍后重试或联系管理员。';
-      // Never return upstream exception bodies, documents, credentials or stack traces.
-      return new Response(JSON.stringify({error: message}), {status, headers});
-    }
-  };
+export async function requestDraft({apiKey, input, model = 'gpt-5.4-mini', signal, fetchImpl = fetch}) {
+  validateKey(apiKey);
+  if (!['gpt-5.4-mini', 'gpt-5.4'].includes(model)) throw new Error('请选择支持的模型。');
+  const validated = validateInput(input);
+  const response = await fetchImpl('https://api.openai.com/v1/responses', {
+    method: 'POST', headers: {Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json'},
+    body: JSON.stringify(buildRequest(validated, model)), signal,
+    credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer',
+  });
+  if (!response.ok) {
+    await response.body?.cancel();
+    if (response.status === 401) throw new Error('API Key 无效或已过期，请在“AI 密钥”中更换完整 secret。');
+    if (response.status === 403) throw new Error('你的 OpenAI 账号、所在地区或项目暂无此模型的访问权限。');
+    if (response.status === 429) throw new Error('你的 API 余额不足或调用过于频繁，请检查 OpenAI 额度后重试。');
+    if (response.status === 400) throw new Error('OpenAI 无法处理本次材料或模型请求。请检查文件是否加密、损坏或过长，必要时转成 PDF。');
+    throw new Error('OpenAI 服务暂不可用，请稍后重试。');
+  }
+  let output;
+  try { output = await response.json(); } catch { throw new Error('AI 返回格式异常，请稍后重试。'); }
+  if (output.status !== 'completed') throw new Error('AI 输出未完成，请减少文件或缩小课题范围后重试。');
+  const parts = (output.output || []).flatMap(o => o.content || []);
+  if (parts.some(p => p.type === 'refusal')) throw new Error('AI 未能处理本次材料，请核对材料内容后重试。');
+  let raw;
+  try { raw = JSON.parse(parts.filter(p => p.type === 'output_text').map(p => p.text).join('')); }
+  catch { throw new Error('AI 返回格式异常，请稍后重试。'); }
+  return validateOutput(raw, validated);
 }

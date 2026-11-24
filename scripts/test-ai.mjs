@@ -1,37 +1,35 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-import {createHandler, validateInput, validateOutput, HttpError, MAX_BODY} from '../supabase/functions/patent-ai/core.mjs';
-import {buildRequest, FIELD_LABELS} from '../supabase/functions/patent-ai/prompt.mjs';
+import {requestDraft, validateKey, validateInput, validateOutput} from '../dist/ai-core.mjs';
+import {buildRequest, FIELD_LABELS} from '../dist/ai-prompt.mjs';
 const require = createRequire(import.meta.url);
 const fields = require('../dist/ai-fields.js');
 const input = () => ({patentType:'utility',note:'核对结构关系',existing:{},files:[{name:'交底.txt',dataUrl:'data:text/plain;base64,'+Buffer.from('装置包括外壳和固定在外壳上的探头。').toString('base64')}]});
 const result = () => ({summary:'待审阅',recommendedType:'utility',typeReason:'产品构造',questions:[],warnings:[],fields:Object.fromEntries(Object.keys(FIELD_LABELS).map(k=>[k,{value:k==='claims'?['一种检测装置，包括外壳和固定在外壳上的探头。']:'材料支持的描述',status:'supported',evidence:[{file:'交底.txt',location:'第一段',excerpt:'装置包括外壳和固定在外壳上的探头。'}],note:''}]))});
-const request = (body=input(), token='Bearer test-user', origin='https://workshop.example') => new Request('https://backend.example/functions/v1/patent-ai',{method:'POST',headers:{'content-type':'application/json',...(token?{authorization:token}:{}),...(origin?{origin}:{})},body:JSON.stringify(body)});
+const fakeKey = 'sk-test-not-a-real-key';
 function harness(overrides={}) {
-  const calls={auth:0,quota:0,openai:0};
-  let upstream;
-  const handler=createHandler({allowedOrigins:['https://workshop.example'],apiKey:'sk-test-not-a-real-key',
-    authenticate:async()=>{calls.auth++;return {userId:'user-a',teamName:'测试队'};},
-    reserveQuota:async(id)=>{calls.quota++;assert.equal(id,'user-a');return {remaining:9,limit:10};},
-    fetchImpl:async(url, options)=>{calls.openai++;upstream=JSON.parse(options.body);assert.equal(url,'https://api.openai.com/v1/responses');return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(result())}]}]});},...overrides});
-  return {handler,calls,upstream:()=>upstream};
+  let calls=0, body;
+  const run=(options={})=>requestDraft({apiKey:fakeKey,input:input(),fetchImpl:async(url, init)=>{
+    calls++;body=JSON.parse(init.body);
+    assert.equal(url,'https://api.openai.com/v1/responses');
+    assert.equal(init.headers.Authorization,'Bearer '+fakeKey);
+    assert.equal(init.credentials,'omit');assert.equal(init.redirect,'error');
+    assert(!init.body.includes(fakeKey));
+    return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(result())}]}]});
+  },...overrides,...options});
+  return {run,calls:()=>calls,body:()=>body};
 }
-test('unauthenticated requests never reserve quota or contact OpenAI',async()=>{const h=harness();assert.equal((await h.handler(request(input(),''))).status,401);assert.deepEqual(h.calls,{auth:0,quota:0,openai:0});});
-test('disallowed origins cannot read or invoke the backend',async()=>{const h=harness();const r=await h.handler(request(input(),'Bearer test','https://evil.example'));assert.equal(r.status,403);assert.equal(r.headers.get('access-control-allow-origin'),null);assert.equal(h.calls.auth,0);});
-test('CORS preflight is supported and does not call authentication',async()=>{const h=harness();const r=await h.handler(new Request('https://backend.example',{method:'OPTIONS',headers:{origin:'https://workshop.example'}}));assert.equal(r.status,204);assert.equal(h.calls.auth,0);});
-test('disabled team denied before parsing documents or charging quota',async()=>{const h=harness({authenticate:async()=>{throw new HttpError(403,'队伍已停用');}});assert.equal((await h.handler(request())).status,403);assert.equal(h.calls.openai,0);assert.equal(h.calls.quota,0);});
-test('missing server key is a real configuration error',async()=>{const h=harness({apiKey:''});const r=await h.handler(request());assert.equal(r.status,503);assert.equal(h.calls.quota,0);});
-test('validated auth identity, not a user-supplied ID, controls quota',async()=>{const h=harness();const r=await h.handler(request({...input(),userId:'other-team'}));assert.equal(r.status,200);assert.equal(h.calls.quota,1);});
-test('quota rejection prevents upstream usage',async()=>{const h=harness({reserveQuota:async()=>{throw new HttpError(429,'今日次数已用完');}});assert.equal((await h.handler(request())).status,429);assert.equal(h.calls.openai,0);});
-test('success uses structured outputs, no storage, and a fixed server model',async()=>{const h=harness();const r=await h.handler(request({...input(),model:'attacker-model'}));const body=await r.json();assert.equal(r.status,200);assert.equal(body.quota.remaining,9);assert.equal(h.upstream().store,false);assert.equal(h.upstream().model,'gpt-5.4-mini');assert.equal(h.upstream().text.format.strict,true);assert.equal(r.headers.get('cache-control'),'no-store');});
+test('missing Key and tracking IDs rejected without API usage',async()=>{for(const apiKey of ['', 'key_tracking_id', 'sk-short']){const h=harness();await assert.rejects(()=>h.run({apiKey}),/完整/);assert.equal(h.calls(),0);}});
+test('users supply their own Key and calls go directly to OpenAI',async()=>{const h=harness();const draft=await h.run();assert.equal(draft.summary,'待审阅');assert.equal(h.calls(),1);assert.equal(h.body().store,false);assert.equal(h.body().text.format.strict,true);});
+test('model selection is bounded and does not change API destination',async()=>{const h=harness();await h.run({model:'gpt-5.4'});assert.equal(h.body().model,'gpt-5.4');await assert.rejects(()=>h.run({model:'unknown-model'}));assert.equal(h.calls(),1);});
+test('invalid upload is rejected before using the personal Key',async()=>{const h=harness();await assert.rejects(()=>h.run({input:{...input(),files:[]}}));assert.equal(h.calls(),0);});
+test('provider errors never expose bodies or Keys',async()=>{for(const status of [400,401,403,429,500]){const h=harness({fetchImpl:async()=>new Response('secret-provider-body',{status})});await assert.rejects(()=>h.run(),e=>!e.message.includes('secret-provider-body')&&!e.message.includes(fakeKey));}});
+test('cancellation reaches fetch without retries',async()=>{const controller=new AbortController();controller.abort();let attempts=0;await assert.rejects(()=>requestDraft({apiKey:fakeKey,input:input(),signal:controller.signal,fetchImpl:async(url,init)=>{attempts++;init.signal.throwIfAborted();}}),{name:'AbortError'});assert.equal(attempts,1);});
+test('incomplete and refusal responses do not become successful drafts',async()=>{for(const output of [{status:'incomplete',output:[]},{status:'completed',output:[{content:[{type:'refusal',refusal:'no'}]}]}]){const h=harness({fetchImpl:async()=>Response.json(output)});await assert.rejects(()=>h.run());}});
 test('personal and unknown fields are not forwarded from existing draft',()=>{const i=validateInput({...input(),existing:{idNumber:'should-not-leak',contact:{phone:'123'},title:'已有名称'}});assert.deepEqual(Object.keys(i.existing),Object.keys(FIELD_LABELS));assert(!JSON.stringify(buildRequest(i,'test')).includes('should-not-leak'));});
 test('file spoofing, duplicate names, too many files and oversized files rejected',()=>{assert.throws(()=>validateInput({...input(),files:[{name:'a.pdf',dataUrl:'data:application/pdf;base64,YWJj'}]}));const f=input().files[0];assert.throws(()=>validateInput({...input(),files:[f,f]}));assert.throws(()=>validateInput({...input(),files:Array(9).fill(f)}));assert.throws(()=>validateInput({...input(),files:[{...f,dataUrl:'data:text/plain;base64,'+Buffer.alloc(5*1024*1024+1).toString('base64')}]}));});
 test('images use input_image, never external URLs or file URLs',()=>{const i=validateInput({...input(),files:[{name:'结构.png',dataUrl:'data:image/png;base64,'+Buffer.from('\x89PNG\r\n\x1a\nmore','latin1').toString('base64')}]});assert.equal(buildRequest(i,'test').input[0].content[1].type,'input_image');assert.throws(()=>validateInput({...input(),files:[{name:'x.pdf',dataUrl:'https://internal.example/secret'}]}));});
-test('streamed bodies exceeding limit rejected before upstream',async()=>{const h=harness();const r=request();r.headers.set('content-length',String(MAX_BODY+1));assert.equal((await h.handler(r)).status,413);assert.equal(h.calls.quota,0);});
-test('invalid JSON produces helpful 400',async()=>{const h=harness();const r=new Request('https://backend.example',{method:'POST',headers:{authorization:'Bearer test','content-type':'application/json'},body:'{'});assert.equal((await h.handler(r)).status,400);});
-test('provider errors never leak secret bodies',async()=>{const h=harness({fetchImpl:async()=>new Response('sk-do-not-leak private document',{status:401})});const r=await h.handler(request());assert.equal(r.status,503);assert(!(await r.text()).includes('sk-do-not-leak'));});
-test('incomplete and refusal responses do not become successful drafts',async()=>{for(const output of [{status:'incomplete',output:[]},{status:'completed',output:[{content:[{type:'refusal',refusal:'no'}]}]}]){const h=harness({fetchImpl:async()=>Response.json(output)});assert((await h.handler(request())).status>=400);}});
 test('unknown evidence sources and unsupported existing draft references need confirmation',()=>{const r=result();r.fields.title.evidence[0].file='不存在.pdf';r.fields.solution.evidence[0].file='已有草稿';const out=validateOutput(r,validateInput(input()));assert.equal(out.fields.title.status,'needs_confirmation');assert.equal(out.fields.solution.status,'needs_confirmation');});
 test('abstract and utility method claims get deterministic review warnings',()=>{const r=result();r.fields.abstract.value='字'.repeat(301);r.fields.claims.value=['一种检测方法，其特征在于检测样本。','根据权利要求2所述的方法'];const out=validateOutput(r,validateInput(input()));assert.equal(out.fields.abstract.status,'needs_confirmation');assert.equal(out.fields.claims.status,'needs_confirmation');assert(out.warnings.length>=3);});
 test('only selected fields change; identity and drawings remain untouched',()=>{const p={...Object.fromEntries(Object.keys(FIELD_LABELS).map(k=>[k,'原文'])),claims:[{text:'原权项'}],inventors:[{name:'甲'}],figures:[{dataUrl:'original'}]};const before=fields.snapshot(p);assert.equal(fields.apply(p,{title:'新名称'},before),1);assert.equal(p.title,'新名称');assert.equal(p.solution,'原文');assert.equal(p.inventors[0].name,'甲');assert.equal(p.figures[0].dataUrl,'original');});
