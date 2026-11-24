@@ -1,0 +1,6 @@
+project_id = "conrad-patent-workshop"
+
+[functions.patent-ai]
+# The handler ALWAYS verifies the bearer token against Auth /user itself.
+# This also supports projects using asymmetric JWT signing keys.
+verify_jwt = false
