@@ -4,7 +4,9 @@
 
 ## 本地运行
 
-在此目录执行 `python3 -m http.server 4173 --bind 127.0.0.1 --directory dist`，打开 http://127.0.0.1:4173/ 。无需安装依赖。
+推荐双击 `启动康莱德工坊.command`（macOS），自动打开 http://127.0.0.1:8765/ 。首次启动安装 PDF 读取组件，需要 Python 3.10+；请保持启动终端开启。已安装并通过 ChatGPT 登录的官方 Codex CLI 负责 AI 整理，无需 API Key。
+
+只使用表单和 Word 导出时，也可执行 `python3 -m http.server 4173 --bind 127.0.0.1 --directory dist`。此静态服务不执行本机 Codex。
 
 ## 使用
 
@@ -14,7 +16,7 @@
 4. 在 Word/WPS 打开全部文件，核对信息、字体、图号、实际分页及签署要求。
 5. 回填请求书的实际清单页数，导出归档包。
 
-专利草稿与附图默认存储在当前浏览器的 IndexedDB。使用 AI 整理时，只有经你确认的上传材料、补充说明和已勾选的技术草稿会由浏览器直接发送到 OpenAI。不同网址和不同设备的数据不会自动同步。使用“备份专利资料”下载完整 JSON；“导入备份”将项目作为独立新记录添加，不覆盖原项目。备份包含填入的人员与技术资料，请妥善保管。
+专利草稿与附图默认存储在当前浏览器的 IndexedDB。使用 AI 整理时，只有经你确认的上传材料、补充说明和已勾选的技术草稿参与整理。本机模式先读取文件，再通过官方 Codex CLI 交给云端模型；可选 API 模式由浏览器直接调用 OpenAI。不同网址和不同设备的数据不会自动同步。使用“备份专利资料”下载完整 JSON；“导入备份”将项目作为独立新记录添加，不覆盖原项目。备份包含填入的人员与技术资料，请妥善保管。
 
 2026 年起，电子提交中的指定专利文件须转换为 XML 并由官方系统校验。本站输出用于编辑、审阅与归档的 Word 材料，不是电子提交完成证明。官方系统：https://cponline.cnipa.gov.cn/ 。
 
@@ -42,22 +44,32 @@
 
 推送到 `main` 后，GitHub Actions 先运行 JavaScript 语法检查和业务规则测试，再将 `dist/` 发布到 Pages。也可在 Actions 页面手动运行 Deploy GitHub Pages。
 
-本站为公开网站。个人使用，无需账号或后台；使用 AI 时各自输入自己的 OpenAI API Key。专利草稿保存在各自浏览器，不提供云端同步。旧网站和 Pages 的网址不同，浏览器数据不会自动迁移：请从旧网站导出 JSON 备份，再在 Pages 里导入。不要将个人信息或真实课题备份提交到公开仓库。
+本站为公开网站。个人使用，无需工坊账号；AI 默认引导使用本机已通过 ChatGPT 登录的 Codex，也保留自带 API Key 的可选入口。GitHub Pages 本身无法执行本机程序，需启动本机版后在本机网址上传文件。专利草稿保存在各自浏览器，不提供云端同步。旧网站和 Pages 的网址不同，浏览器数据不会自动迁移：请从旧网站导出 JSON 备份，再在 Pages 里导入。不要将个人信息或真实课题备份提交到公开仓库。
 
 空白模板已经随仓库提供，日常运行和部署不需要重新生成模板。`scripts/prepare_templates.py` 是维护用脚本，需要准备官方原始文件到本地 `qa/` 才能运行。
 
-## 个人使用 · 多文件 AI 专利整理
+## 个人使用 · 本机 Codex 专利整理
 
-首页点击“上传材料 · AI 整理”，输入自己的 OpenAI API Key 后，可上传 1–8 份 PDF、DOCX、PPTX、TXT、MD 或图片。AI 整理九类专利技术字段，并列出来源线索、待补问题与类型建议。默认自动检查并直接下载 Word ZIP 包，生成结果另存为新专利，原专利不覆盖。缺失或不确定的信息写入待补清单；也可选择逐项审阅模式。
+1. 双击 `启动康莱德工坊.command`，在本机网址进入工坊。
+2. 上传 1–8 份 PDF、DOCX、PPTX、TXT、MD 或 PNG/JPG 材料；无需填写 API Key。
+3. 默认由 GPT-6.2 Sol 整理九类专利技术字段，也可在“本机 Codex”设置选择 Astra。模型可用性和用量由当前 Codex 订阅决定。
+4. 完成后自动检查并下载 Word ZIP，另存一份新专利，保留原稿。缺失或不确定的信息列入待补清单；可切换逐项审阅模式。
 
-默认使用 GPT-6.2 Sol，可选择 GPT-6.2 Astra、GPT-5.4 mini 或 GPT-5.4；需要自己的 API Key 具备所选模型权限。
+本机服务仅监听 127.0.0.1，使用官方 `codex exec` 和现有 ChatGPT 登录；不读取登录密钥文件，不向网页返回凭据，不回退 API 计费。模型推理仍然联网，并计入 Codex 订阅用量。CLI 在隔离临时目录中以只读方式运行，禁用工具、规则文件及用户配置，完成后删除临时文件。本机接入只供本人使用，不应转发端口或部署到公网。
 
-无需注册登录，也无需 Supabase、后台或插件授权。API 费用由使用者自己的 OpenAI 账号承担。Key 只留在当前页面内存，不写入 IndexedDB、localStorage、sessionStorage 或 JSON 备份；刷新、关闭或点击“清除 Key”后重新填写。只在信任的设备和页面输入自己的 Key。浏览器必须能够访问 OpenAI API。
+PDF 文字与图页、Word/PPT 文字及内嵌 PNG/JPG 在本机解析。技术图像用于理解材料；正式专利附图需在附图步骤核对上传，不会自动把报告截图当作提交用附图。
 
-文件直接发送至 `https://api.openai.com/v1/responses`；没有工坊中转服务。使用 `store:false`，服务商的数据保留以其账户政策为准。不要将真实 Key 写入源码或公开仓库。
+本机网址与 GitHub Pages 的浏览器存储相互独立。旧专利请先导出 JSON 备份，再在本机工坊导入。
 
-[个人版使用说明](docs/AI部署说明.md) 介绍文件要求、密钥输入和常见问题。提示词及输入输出校验随静态网站发布，无需构建或服务器配置。
+[个人版使用说明](docs/AI部署说明.md) 包含启动、文件要求、故障处理和可选 API 模式。修改提示词后运行 `node scripts/build-local-config.mjs` 同步本机配置。
 
-`node --test scripts/test-ai.mjs`（Node 22+）验证个人 Key 输入、请求地址、模型输出和字段采纳；使用模拟上游，不产生 API 用量。可选浏览器集成测试 `scripts/test-ai-browser.cjs` 需要 Playwright；它验证多文件流程、密钥不落盘、刷新清除和 Word 导出。
+## 测试
 
-API 错误会按具体 error.code 区分余额耗尽、组织/项目消费上限和临时限流。临时限流仅在等待不超过 30 秒时自动重试一次；额度、计费和未知错误不自动重试。失败保留文件和补充说明，可更换 Key/模型后重试，或下载不含密钥的诊断信息。Word 打包失败时只重新打包，不再调用 AI。
+- `node scripts/test-validation.cjs` 和 `node scripts/test-public-config.cjs`：字段、导出规则与公开配置。
+- `node --test scripts/test-ai.mjs`（Node 22+）：输入输出、错误分类及字段采纳。
+- `node scripts/build-local-config.mjs --check`：网页与本机提示词一致。
+- `.local-codex-venv/bin/python -m unittest discover -s scripts -p test_local_codex.py`：文件解析、登录约束、来源与令牌校验。CI 无 PDF 依赖时跳过 PDF 测试。
+- `scripts/test-ai-browser.cjs`、`scripts/test-ai-auto-browser.cjs`：Playwright 模拟 API 回归，不产生 API 用量。
+- `scripts/test-local-codex-browser.cjs`：模拟本机服务，验证在线引导、登录提示、失败保留、取消任务和无 API 请求。
+
+2026-11-24 在本机使用实际 ChatGPT 登录验证 TXT + 含图 PDF → Codex → 专利字段 → Word ZIP，全程未使用 API Key。真实输出仅保存在本地忽略目录 `qa/`。

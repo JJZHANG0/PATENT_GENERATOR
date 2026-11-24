@@ -23,6 +23,7 @@ jobs:
           node --check dist/app.js
           node --check dist/export.js
           node --check dist/ai.js
+          node --check dist/local-codex.js
           node --check dist/ai-fields.js
           node --check dist/ai-package.js
           node --check dist/ai-core.mjs
@@ -30,6 +31,8 @@ jobs:
           node scripts/test-validation.cjs
           node scripts/test-public-config.cjs
           node --test scripts/test-ai.mjs
+          node scripts/build-local-config.mjs --check
+          python3 -m unittest discover -s scripts -p test_local_codex.py
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload website

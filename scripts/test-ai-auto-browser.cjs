@@ -13,7 +13,7 @@ const draft={summary:'测试交底整理',recommendedType:'invention',typeReason
   attempts++;assert.equal(JSON.parse(route.request().postData()).input[0].content.length,3);
   return route.fulfill({status:quotaError?429:200,contentType:'application/json',headers:{'access-control-allow-origin':'*','x-request-id':'req_test_auto','access-control-expose-headers':'x-request-id'},body:JSON.stringify(quotaError?{error:{code:'project_spend_limit_exceeded',type:'insufficient_quota',message:'private-error'}}:{status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(draft)}]}]})});
  });
- await page.goto(base);await page.locator('.ai-entry button').click();await page.locator('#ai-key').fill('sk-fake-key-for-tests');await page.locator('#ai-settings button[type=submit]').click();
+ await page.goto(base);await page.locator('.ai-entry button').click();if(await page.locator('[data-ai=use-api]').count())await page.locator('[data-ai=use-api]').click();await page.locator('#ai-key').fill('sk-fake-key-for-tests');await page.locator('#ai-settings button[type=submit]').click();
  assert.equal(await page.locator('#ai-output').inputValue(),'package');
  await page.locator('#ai-note').fill('使用第二版方案');
  await page.locator('#ai-files').setInputFiles([{name:'交底.txt',mimeType:'text/plain',buffer:Buffer.from('外壳与探头连接')},{name:'备注.txt',mimeType:'text/plain',buffer:Buffer.from('无实验数据')}]);

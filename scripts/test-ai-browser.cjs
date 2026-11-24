@@ -26,7 +26,7 @@ const draft = {summary:'整理了测试技术材料',recommendedType:'invention'
   });
   await page.goto(base);await page.getByRole('heading',{name:'专利申请，从这里开始。'}).waitFor();
   assert.equal(await page.getByText('队伍登录',{exact:true}).count(),0);
-  await page.locator('.ai-entry button').click();
+  await page.locator('.ai-entry button').click();if(await page.locator('[data-ai=use-api]').count())await page.locator('[data-ai=use-api]').click();
   await page.getByRole('heading',{name:'使用自己的 OpenAI Key'}).waitFor();
   assert.equal(await page.locator('#ai-key').getAttribute('type'),'password');assert.equal(await page.locator('#ai-model').inputValue(),'gpt-6.2-sol');assert.equal(await page.locator('#ai-model option').count(),4);
   await page.screenshot({path:'qa/ai-personal-settings.png'});
@@ -73,9 +73,9 @@ const draft = {summary:'整理了测试技术材料',recommendedType:'invention'
   await page.locator('#ai-dialog [data-ai=close]').click();
   await page.locator('[data-ai=settings]').click();await page.getByRole('button',{name:'清除 Key',exact:true}).click();assert.equal(await page.locator('#ai-key').inputValue(),'');
   await page.locator('#ai-dialog [data-ai=close]').click();await page.locator('[data-ai=settings]').click();await page.locator('#ai-key').fill(fakeKey);await page.locator('#ai-settings button[type=submit]').click();
-  await page.reload();await page.locator('[data-ai=settings]').filter({hasText:'AI 密钥'}).waitFor();
+  await page.reload();await page.locator('[data-ai=settings]').filter({hasText:'AI 设置'}).waitFor();
   await page.getByText('一种经审阅的检测装置',{exact:true}).waitFor();
-  await page.locator('.ai-entry button').click();await page.getByRole('heading',{name:'使用自己的 OpenAI Key'}).waitFor();assert.equal(await page.locator('#ai-key').inputValue(),'');
+  await page.locator('.ai-entry button').click();if(await page.locator('[data-ai=use-api]').count())await page.locator('[data-ai=use-api]').click();await page.getByRole('heading',{name:'使用自己的 OpenAI Key'}).waitFor();assert.equal(await page.locator('#ai-key').inputValue(),'');
   await page.setViewportSize({width:390,height:844});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:'qa/ai-personal-mobile.png'});
   console.log('PASS own-Key replacement, safe API errors, manual clearing, refresh clearing and mobile layout');
   assert.deepEqual(errors,[]);await browser.close();

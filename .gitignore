@@ -14,3 +14,7 @@ outputs/
 .supabase/
 supabase/.temp/
 *.secrets
+
+.local-codex-venv/
+.local-codex.log
+__pycache__/

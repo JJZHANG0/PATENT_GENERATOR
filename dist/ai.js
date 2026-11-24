@@ -1,6 +1,7 @@
 (function() {
   'use strict';
-  const fields = window.PatentAIFields;
+  const fields = window.PatentAIFields, localCodex = window.PatentLocalCodex;
+  let engine = localCodex?.available ? 'local' : 'choose';
   const $ = s => document.querySelector(s);
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const types = {pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',txt:'text/plain',md:'text/markdown',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg'};
@@ -18,18 +19,31 @@
     dialog().close(); dialog().innerHTML = ''; selectedFiles = []; pending = null; baseline = null; targetId = null; artifact = null; lastDiagnostic = null;
   }
   function header() {
-    return `<button class="btn small ai-account-button" data-ai="settings">${apiKey ? 'AI 已配置' : 'AI 密钥'}<span class="ai-dot ${apiKey ? 'online' : ''}"></span></button>`;
+    return `<button class="btn small ai-account-button" data-ai="settings">${engine === 'local' ? '本机 Codex' : apiKey ? 'AI 已配置' : 'AI 设置'}<span class="ai-dot ${engine === 'local' || apiKey ? 'online' : ''}"></span></button>`;
   }
   function settingsPanel(continueUpload = false) {
     resumeUpload = continueUpload;
+    if (engine !== 'api') return localSettings();
     show(`<h2>使用自己的 OpenAI Key</h2><p>无需注册工坊账号。每位使用者填写自己的 Key，API 费用由各自的 OpenAI 账号承担。</p><form id="ai-settings"><div class="field"><label for="ai-key">OpenAI API Key</label><input id="ai-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="600" placeholder="${apiKey ? '已配置；留空保留当前 Key，输入可更换' : '粘贴以 sk- 开头的完整 secret'}" ${apiKey ? '' : 'required'}><small>需要完整 secret；key_ 开头的 tracking ID 无法使用。</small></div><div class="field"><label for="ai-model">生成模型</label><select id="ai-model"><option value="gpt-6.2-sol" ${model === 'gpt-6.2-sol' ? 'selected' : ''}>GPT-6.2 Sol · 专利整理（推荐）</option><option value="gpt-6.2-astra" ${model === 'gpt-6.2-astra' ? 'selected' : ''}>GPT-6.2 Astra · 复杂材料（费用较高）</option><option value="gpt-5.4-mini" ${model === 'gpt-5.4-mini' ? 'selected' : ''}>GPT-5.4 mini · 经济方案</option><option value="gpt-5.4" ${model === 'gpt-5.4' ? 'selected' : ''}>GPT-5.4 · 备选模型</option></select><small>模型能否调用取决于你自己的 API 账号权限和额度；工坊不会自动切换到其他模型。</small></div><div class="ai-info">Key 仅在当前页面内存中使用，刷新或关闭后清除，不写入草稿、备份或浏览器存储。文件由你的浏览器直接发送到 OpenAI，不经过工坊后台。请只在你信任的设备和此工坊页面输入自己的 Key。</div><p class="ai-muted">保存设置不会发起 API 请求。只有点击“开始整理并生成”时才会使用额度。</p><div class="actions">${apiKey ? '<button type="button" class="btn" data-ai="clear-key">清除 Key</button>' : ''}<a class="btn" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">管理自己的 Key</a><button class="btn primary" type="submit">${continueUpload ? '使用此 Key，继续上传' : '仅本次使用'}</button></div></form>`);
+  }
+  function localSettings() {
+    if (!localCodex?.available) {
+      show(`<h2>使用本机 Codex，无需 API Key</h2><p>让这台电脑已登录的 Codex 整理文件，再由工坊自动生成 Word。使用 ChatGPT/Codex 订阅额度，模型推理仍需联网。</p><div class="ai-info">先双击电脑里的“启动康莱德工坊.command”，再打开本机工坊。GitHub Pages 无法直接运行你电脑上的 Codex。<br>第一次在其他电脑使用：下载源码 ZIP、解压，安装并登录 Codex 后运行启动文件。</div><div class="actions"><a class="btn" href="https://github.com/JJZHANG0/PATENT_GENERATOR/archive/refs/heads/main.zip" target="_blank" rel="noopener noreferrer">下载本机版</a><a class="btn primary" href="http://127.0.0.1:8765/" target="_blank" rel="noopener noreferrer">打开本机工坊</a></div><p class="ai-muted">本机网址与在线网址的浏览器草稿分别保存。需要迁移时，先备份再导入。</p><button class="btn" data-ai="use-api">其他方式：使用自己的 API Key</button>`);
+      return;
+    }
+    show(`<h2>本机 Codex 已接入</h2><p id="local-status" role="status">正在检查 ChatGPT 登录状态…</p><form id="local-settings"><div class="field"><label for="local-model">Codex 模型</label><select id="local-model"><option value="gpt-6.2-sol" ${model==='gpt-6.2-sol'?'selected':''}>GPT-6.2 Sol · 专利整理</option><option value="gpt-6.2-astra" ${model==='gpt-6.2-astra'?'selected':''}>GPT-6.2 Astra · 复杂材料</option></select></div><div class="ai-info">无需 API Key，不读取 API 余额。任务由这台电脑的官方 Codex CLI 处理，使用其 ChatGPT 登录和订阅用量。文件会在本机解析；文字和需识别的图片会交给 Codex 云端模型，任务临时文件完成后清除。</div><button type="submit" class="btn primary">${resumeUpload?'继续上传材料':'使用本机 Codex'}</button></form>`);
+    localCodex.status().then(status=>{const el=$('#local-status');if(el)el.textContent=status.message;}).catch(e=>error(e.message));
+  }
+  function saveLocalSettings() {
+    model = $('#local-model').value; engine='local'; apiKey=''; adapter.render();
+    if(resumeUpload)start(true);else close();
   }
   async function saveSettings() {
     const field = $('#ai-key'), nextKey = field.value.trim();
     busy = true;
     try {
     if (nextKey) {
-      const {validateKey} = await import('./ai-core.mjs?v=20261124-auto1');
+      const {validateKey} = await import('./ai-core.mjs?v=20261124-local1');
       validateKey(nextKey);
       apiKey = nextKey;
     }
@@ -49,11 +63,11 @@
     adapter.toast('已清除当前页面的 Key。专利草稿仍然保留。');
   }
   function start(preserve = false) {
-    if (!apiKey) return settingsPanel(true);
+    if (engine !== 'local' && !apiKey) return settingsPanel(true);
     const project = (preserve && targetId && adapter.project(targetId)) || adapter.ensureProject('个人课题');
     targetId = project.id; baseline = fields.snapshot(project);
     if (!preserve) { selectedFiles = []; pending = null; artifact = null; formOptions = {note:'',include:true,delivery:'package'}; }
-    show(`<h2>上传材料，直接生成专利文件</h2><p>项目报告、技术交底、实验记录与结构图，可以一起上传。</p><form id="ai-generate"><div class="ai-upload"><span class="ai-upload-icon">↥</span><strong>选择一份或多份技术材料</strong><span>PDF · DOCX · PPTX · TXT · MD · PNG · JPG</span><label class="btn primary" for="ai-files">添加文件</label><input id="ai-files" type="file" accept=".pdf,.docx,.pptx,.txt,.md,.png,.jpg,.jpeg" multiple><small>最多 8 份，单份 5 MB，合计 15 MB</small></div><div id="ai-file-list" class="ai-file-list"></div><p class="ai-muted">含结构图的 Word / PPT 请优先转成 PDF；非 PDF 文档只提取文字。加密文件请先解除密码。</p><div class="field"><label for="ai-type">本次起草的专利类型</label><select id="ai-type" disabled><option>${project.type === 'utility' ? '实用新型专利' : '发明专利'}</option></select><small>与当前专利一致。需要调整时，请先在“专利信息”中修改。</small></div><div class="field"><label for="ai-note">希望重点整理什么？<span class="ai-muted">（选填）</span></label><textarea id="ai-note" rows="3" maxlength="3000" placeholder="例如：重点突出检测装置的结构关系；报告中的第二版方案为准。">${esc(formOptions.note)}</textarea></div><div class="field"><label for="ai-output">生成方式</label><select id="ai-output"><option value="package" ${formOptions.delivery === 'package' ? 'selected' : ''}>自动整理并直接下载 Word 材料包</option><option value="review" ${formOptions.delivery === 'review' ? 'selected' : ''}>先逐项审阅，再自行导出</option></select></div><label class="ai-check"><input type="checkbox" id="ai-include" ${formOptions.include ? 'checked' : ''}><span>同时参考当前专利的已有技术草稿（不发送人员、证件和联系信息）</span></label><label class="ai-check"><input type="checkbox" id="ai-consent" required><span>我有权使用这些材料，同意将所选文件、补充说明及勾选的草稿直接发送至 OpenAI 处理。</span></label><div class="ai-info">AI 会整理技术说明、权利要求与摘要，列出来源线索和待补问题。默认自动采用有材料依据且通过检查的内容，套用模板生成独立材料包，保留原专利。缺失的人员、签署、实验数据或附图会列入待补清单，不会编造。</div><div class="ai-bottom"><span>使用你自己的 ${esc(model)} API 额度<br>已提交的请求即使取消或失败，也可能已产生用量。</span><button class="btn primary" type="submit">开始整理并生成 →</button></div></form>`);
+    show(`<h2>上传材料，直接生成专利文件</h2><p>项目报告、技术交底、实验记录与结构图，可以一起上传。</p><form id="ai-generate"><div class="ai-upload"><span class="ai-upload-icon">↥</span><strong>选择一份或多份技术材料</strong><span>PDF · DOCX · PPTX · TXT · MD · PNG · JPG</span><label class="btn primary" for="ai-files">添加文件</label><input id="ai-files" type="file" accept=".pdf,.docx,.pptx,.txt,.md,.png,.jpg,.jpeg" multiple><small>最多 8 份，单份 5 MB，合计 15 MB</small></div><div id="ai-file-list" class="ai-file-list"></div><p class="ai-muted">${engine === 'local' ? '本机读取 PDF 图页及 Word / PPT 中的 PNG、JPG 图片；单份 PDF 最多 30 页，共最多 24 张需识别图像。' : '含结构图的 Word / PPT 请优先转成 PDF；非 PDF 文档只提取文字。'}加密文件请先解除密码。</p><div class="field"><label for="ai-type">本次起草的专利类型</label><select id="ai-type" disabled><option>${project.type === 'utility' ? '实用新型专利' : '发明专利'}</option></select><small>与当前专利一致。需要调整时，请先在“专利信息”中修改。</small></div><div class="field"><label for="ai-note">希望重点整理什么？<span class="ai-muted">（选填）</span></label><textarea id="ai-note" rows="3" maxlength="3000" placeholder="例如：重点突出检测装置的结构关系；报告中的第二版方案为准。">${esc(formOptions.note)}</textarea></div><div class="field"><label for="ai-output">生成方式</label><select id="ai-output"><option value="package" ${formOptions.delivery === 'package' ? 'selected' : ''}>自动整理并直接下载 Word 材料包</option><option value="review" ${formOptions.delivery === 'review' ? 'selected' : ''}>先逐项审阅，再自行导出</option></select></div><label class="ai-check"><input type="checkbox" id="ai-include" ${formOptions.include ? 'checked' : ''}><span>同时参考当前专利的已有技术草稿（不发送人员、证件和联系信息）</span></label><label class="ai-check"><input type="checkbox" id="ai-consent" required><span>我有权使用这些材料，同意将所选文件、补充说明及勾选的草稿${engine === 'local' ? '交给本机 Codex 整理（使用订阅额度，模型推理需联网）' : '直接发送至 OpenAI API 处理'}。</span></label><div class="ai-info">AI 会整理技术说明、权利要求与摘要，列出来源线索和待补问题。默认自动采用有材料依据且通过检查的内容，套用模板生成独立材料包，保留原专利。缺失的人员、签署、实验数据或附图会列入待补清单，不会编造。</div><div class="ai-bottom"><span>${engine === 'local' ? '使用本机 Codex · ChatGPT 订阅额度' : '使用你自己的 '+esc(model)+' API 额度'}<br>已开始的任务即使取消，也可能计入相应服务的用量。</span><button class="btn primary" type="submit">开始整理并生成 →</button></div></form>`);
     listFiles();
   }
   function listFiles() {
@@ -93,21 +107,26 @@
     baseline = fields.snapshot(project);
     busy = true; controller = new AbortController();
     const activeController = controller;
-    const timeout = setTimeout(() => activeController.abort(), 300000);
+    const timeout = setTimeout(() => activeController.abort(), engine === 'local' ? 660000 : 300000);
     show(`<div class="ai-progress"><div class="ai-spinner"></div><h2>正在读取材料</h2><p id="ai-progress-text" role="status" aria-live="polite">准备上传所选文件…</p><p>AI 将梳理技术方案、起草字段并整理依据。复杂材料可能需要数分钟，完成后自动检查并按所选方式生成材料。</p><button class="btn" data-ai="cancel">取消本次生成</button></div>`);
     try {
       const files = await Promise.all(selectedFiles.map(readFile));
-      const {requestDraft} = await import('./ai-core.mjs?v=20261124-auto1');
+      const {requestDraft} = await import('./ai-core.mjs?v=20261124-local1');
       activeController.signal.throwIfAborted();
       $('#ai-progress-text').textContent = '已读取文件，正在上传并请求 AI 整理专利建议稿…';
-      pending = await requestDraft({apiKey, model, input:{patentType:project.type,note,existing,files},signal:activeController.signal,onRetry:({seconds})=>{ $('#ai-progress-text').textContent = `OpenAI 暂时限流，等待 ${seconds} 秒后自动重试一次（不是余额不足）…`; }});
+      const input = {patentType:project.type,note,existing,files};
+      if (engine === 'local') {
+        pending = await localCodex.generate(input,model,activeController.signal,message=>{const el=$('#ai-progress-text');if(el)el.textContent=message;});
+      } else {
+      pending = await requestDraft({apiKey, model, input,signal:activeController.signal,onRetry:({seconds})=>{ $('#ai-progress-text').textContent = `OpenAI 暂时限流，等待 ${seconds} 秒后自动重试一次（不是余额不足）…`; }});
+      }
       if (formOptions.delivery === 'package') await producePackage();
       else { selectedFiles = []; review(); }
     } catch (e) {
       if (pending) packageFailure(e);
       else {
         lastDiagnostic = e.diagnostic ? {...e.diagnostic,model,fileCount:selectedFiles.length} : null;
-        show(`<h2>${esc(e.title || '本次生成未完成')}</h2><p>${esc(readableError(e))}</p>${lastDiagnostic ? `<div class="ai-info">HTTP ${lastDiagnostic.status} · 错误代码：${esc(lastDiagnostic.code)}${lastDiagnostic.requestId ? `<br>请求编号：${esc(lastDiagnostic.requestId)}` : ''}</div>` : ''}<p>已保留本次 ${selectedFiles.length} 份文件和补充说明，无需重新上传。原专利没有被覆盖。</p><div class="actions">${e.link ? `<a class="btn" href="${esc(e.link)}" target="_blank" rel="noopener noreferrer">查看对应 API 设置</a>` : ''}<button class="btn" data-ai="retry-settings">更换 Key / 模型</button><button class="btn" data-ai="edit-upload">调整材料</button><button class="btn primary" data-ai="retry">保留材料重试</button></div>${lastDiagnostic ? '<button class="btn" data-ai="diagnostic">下载诊断信息（不含密钥）</button>' : ''}`);
+        show(`<h2>${esc(e.title || '本次生成未完成')}</h2><p>${esc(readableError(e))}</p>${lastDiagnostic ? `<div class="ai-info">HTTP ${lastDiagnostic.status} · 错误代码：${esc(lastDiagnostic.code)}${lastDiagnostic.requestId ? `<br>请求编号：${esc(lastDiagnostic.requestId)}` : ''}</div>` : ''}<p>已保留本次 ${selectedFiles.length} 份文件和补充说明，无需重新上传。原专利没有被覆盖。</p><div class="actions">${e.link ? `<a class="btn" href="${esc(e.link)}" target="_blank" rel="noopener noreferrer">查看对应 API 设置</a>` : ''}<button class="btn" data-ai="retry-settings">${engine === 'local' ? '检查登录 / 更换模型' : '更换 Key / 模型'}</button><button class="btn" data-ai="edit-upload">调整材料</button><button class="btn primary" data-ai="retry">保留材料重试</button></div>${lastDiagnostic ? '<button class="btn" data-ai="diagnostic">下载诊断信息（不含密钥）</button>' : ''}`);
       }
     } finally { clearTimeout(timeout); busy = false; controller = null; }
   }
@@ -161,6 +180,7 @@
     if (busy && action !== 'cancel' && action !== 'close') return;
     try {
       if (action === 'settings') settingsPanel();
+      if (action === 'use-api') { engine='api'; settingsPanel(resumeUpload); }
       if (action === 'start') start();
       if (action === 'retry-settings') settingsPanel(true);
       if (action === 'edit-upload') start(true);
@@ -182,9 +202,10 @@
     event.target.value = '';
   });
   document.addEventListener('submit', event => {
-    if (!['ai-settings','ai-generate','ai-apply'].includes(event.target.id)) return;
+    if (!['ai-settings','local-settings','ai-generate','ai-apply'].includes(event.target.id)) return;
     event.preventDefault();
     if (busy) return;
+    if (event.target.id === 'local-settings') { saveLocalSettings(); return; }
     const task = event.target.id === 'ai-settings' ? saveSettings() : event.target.id === 'ai-generate' ? generate(false) : apply();
     Promise.resolve(task).catch(e => error(readableError(e)));
   });

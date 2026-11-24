@@ -1,49 +1,53 @@
-# 康莱德工坊 · 个人版
+# 康莱德工坊 · 本机 Codex 版
 
-直接使用 GitHub Pages 网站，无需注册、Supabase、后台或插件授权。其他使用者各自填写自己的 OpenAI API Key，费用各自承担。
+默认使用这台电脑已通过 ChatGPT 登录的官方 Codex，不需要 OpenAI API Key，也不依赖 API 余额。仍使用 Codex 的联网模型和订阅用量，不是离线模型或无限额度。
 
-## 使用步骤
+## 启动与生成
 
-1. 点击“上传材料 · AI 整理”或右上角“AI 密钥”。
-2. 在网站密码输入框填自己的完整 OpenAI secret（以 `sk-` 开头）。`key_…` tracking ID 不能调用 API。遗失 secret 时，需要在自己的 OpenAI 账户中新建。
-3. 默认使用 GPT-6.2 Sol（专利整理）；可选 GPT-6.2 Astra（复杂材料，费用较高），并保留 GPT-5.4 mini（经济方案）和 GPT-5.4（备选）。具体可用性以自己的 API 项目权限为准，失败时不会自动换模型。保存设置不会调用 API。
-4. 上传技术材料，确认材料使用授权后，点击“开始整理并生成”。
-5. 默认直接下载 Word 材料包，同时另存一份专利；原稿不覆盖。材料不足时输出带待补清单的草稿包，不编造人员、实验或附图。
-6. 如需逐项选择，可在上传页面将生成方式改为“先逐项审阅，再自行导出”。
+1. macOS 双击解压目录里的 `启动康莱德工坊.command`。需 Python 3.10+，首次自动建立虚拟环境并安装 PDF 组件；保持终端窗口开启。
+2. 浏览器打开 http://127.0.0.1:8765/ 。如未登录，在终端运行 `codex login`，选择 ChatGPT。启动器能找到 PATH 中的 Codex CLI，也支持本机 ChatGPT 应用内置 CLI。
+3. 点击“上传材料 · AI 整理”，选择材料及专利类型。顶部“本机 Codex”可检查登录状态和选择 GPT-6.2 Sol / Astra。
+4. 确认材料使用授权后点击“开始整理并生成”。默认自动下载 Word ZIP，并另存为新专利；也可选逐项审阅。
+5. Word 包含适用的请求书、权利要求书、说明书和摘要；已有正式附图时另生成说明书附图、摘要附图，其他文书按申请类型与选项生成。同时包含待补清单、整理依据与 JSON 备份。
 
-## 数据与密钥
+其他系统可手动建立 Python 虚拟环境，安装 `scripts/local-codex-requirements.txt`，再执行 `python scripts/local_codex.py --open-browser`。CLI 需支持 `exec --ignore-user-config --ignore-rules --ephemeral --output-schema`；版本过旧时请更新官方 Codex。
 
-Key 只在当前页面的 JavaScript 内存中使用，不写入浏览器存储、草稿、备份或代码。刷新、关闭页面、离开页面或手动清除后需重新填写。更换 Key 不切换或删除草稿。
+## 在线网站与本机网站
 
-这是使用者自带 Key 的浏览器工具，请只在自己信任的设备及页面使用。请求只发向固定的 OpenAI API 地址，不支持第三方中转地址，也不发送到工坊后台。上传原文件只留在本次页面内存，不自动保存到草稿。采纳后的技术字段和手动上传的正式附图保存在 IndexedDB；更换设备前请导出备份。
+GitHub Pages 是静态网站，不能自行运行电脑上的 Codex。在线入口提供“下载本机版”和“打开本机工坊”，使用前需先运行启动文件。不要把本机服务暴露到公网。
 
-OpenAI 请求使用 `store:false`，不建立长期 Files 上传；服务商的数据保留取决于账户政策，不代表零数据保留。浏览器网络必须能访问 OpenAI API。
+两个网址的草稿分别存储。需要迁移时，从原网址“备份专利资料”下载 JSON，再到本机网址“导入备份”。这不会覆盖原项目。个人资料和真实课题不应提交到公开仓库。
 
-## 文件与质量
+## 文件与数据
 
-支持 1–8 份 PDF / DOCX / PPTX / TXT / MD / PNG / JPG；单份 5 MB，合计 15 MB。非 PDF 文档只提取文字，含结构图的 Word/PPT 请先转为 PDF；加密文件先解除密码。
+支持 1–8 份 PDF / DOCX / PPTX / TXT / MD / PNG / JPG；单份 5 MB，合计 15 MB。PDF 每份最多 30 页，全部材料最多 24 张需识别图片/图页。文本过长时需按课题拆分。加密 PDF 先解除密码；旧 DOC/PPT 请先转换。
 
-AI 整理名称、技术领域、背景技术、技术问题、技术方案、有益效果、实施方式、权利要求、摘要。人员、证件、签署和正式附图需自行核对填写。提示词禁止编造实验数据和不存在的结构，材料不足会列出待补问题。生成内容仍是需核对的审阅初稿。
+PDF 读取文字并渲染含图或扫描页；DOCX/PPTX 读取文字及内嵌 PNG/JPG。复杂排版、矢量图和图文位置建议先转成 PDF。原图供 AI 理解，不自动转换为正式专利附图。
+
+浏览器把所选材料发送到本机服务；提取的文字和图片由官方 Codex CLI 交给云端模型。没有工坊云端中转。临时文件在任务完成、失败或取消后删除，结果暂存在服务内存中；浏览器采纳后的专利保存在 IndexedDB。刷新或关闭上传页面会丢失尚未保存的上传选择。
+
+AI 整理名称、技术领域、背景技术、技术问题、技术方案、有益效果、实施方式、权利要求和摘要。缺失的人员、证件、实验数据、签署和正式附图不编造；输出属于待核对的专利草稿。
 
 ## 常见情况
 
-- 401：Key 无效或过期，更换完整 secret。
-- 403：账户、地区、项目或模型权限不可用。
-- 404：所选模型不存在或当前 Key 无访问权限，请检查项目或手动更换模型。
-- 429：按返回代码区分 `credit_balance_exhausted`（预付余额）、`project_spend_limit_exceeded`（项目上限）、`organization_spend_limit_exceeded`（组织上限）、`organization_usage_limit_exceeded`（获批用量）、`insufficient_quota`（尚需核对的额度问题）与 `rate_limit_exceeded` / `slow_down`（临时限流）。未知原因不推断成余额不足。错误卡片可下载 HTTP 状态、分类代码与请求编号；不包含 Key、原始错误文本或上传内容。
-- 网络失败：检查浏览器能否访问 OpenAI API；本工具没有代理中转。
-- 超时或输出不完整（单次最多等待 5 分钟）：减少文件或缩小课题范围。已发出的请求即使取消或失败，也可能产生用量；仅已识别的临时限流在 Retry-After 不超过 30 秒时重试一次；计费、额度、过大请求和未知错误不自动重试。
+- 未找到 CLI / 未登录：安装或更新 Codex，使用 `codex login` 登录 ChatGPT。本机模式拒绝 API Key 登录，不自动改用 API 计费。
+- 订阅用量受限：在 Codex 中查看用量，等待恢复或按订阅规则处理。API 充值不是本机模式的前提。
+- 模型不可用：在“本机 Codex”中切换模型，或更新 CLI；不会偷偷换模型。
+- 本机页面打不开：先双击启动文件，检查终端是否仍在运行、8765 端口是否被占用。
+- 任务超时：单次最多 10 分钟，减少材料后重试；失败保留页面中的材料选择和说明。
+- 取消任务：会停止对应 CLI 进程；已经处理的内容可能计入订阅用量。
+- Word 打包失败：保留 AI 结果重新打包，不重复调用 Codex。
 
-## 开发与发布
+## 可选 API 模式
 
-`dist/ai.js` 管理临时 Key 和上传审阅界面；`ai-core.mjs` 直接调用 Responses API 并校验结果；`ai-prompt.mjs` 包含系统提示词与严格 JSON Schema。页面不含任何预置 Key。
+GitHub Pages 仍提供“其他方式：使用自己的 API Key”。这是独立选项，使用者自行承担 API 用量，与本机模式不混用。Key 仅在页面内存，刷新或关闭后清除，不存入浏览器数据库或备份。tracking ID 不能代替 secret。
 
-推送 main 后自动部署 GitHub Pages。运行 `node scripts/test-validation.cjs`、`node scripts/test-public-config.cjs`、`node --test scripts/test-ai.mjs`。可选浏览器测试用模拟响应验证流程，不使用真实 Key 或产生费用。
+API 请求直接发送至固定的 OpenAI Responses 地址并使用 `store:false`；数据保留以账户政策为准。429 按实际代码区分余额耗尽、消费上限和临时限流。余额错误不自动重试；可下载无密钥的诊断信息。仅明确的临时限流、且等待不超过 30 秒时自动重试一次。
 
-官方说明：[API Key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key)、[文件输入](https://developers.openai.com/api/docs/guides/file-inputs)、[结构化输出](https://developers.openai.com/api/docs/guides/structured-outputs)。
+## 维护与验证
 
-模型依据（2026-11-24 核对）：[GPT-6.2 Sol](https://developers.openai.com/api/docs/models/gpt-6.2-sol)、[GPT-6.2 Astra](https://developers.openai.com/api/docs/models/gpt-6.2-astra)。两者支持 Responses、图片输入和结构化输出；本工具使用 medium reasoning。
+`dist/local-codex.js` 连接本机服务，`scripts/local_codex.py` 负责解析与 CLI；`dist/ai.js` 负责上传和结果流转。提示词与 Schema 来自 `dist/ai-prompt.mjs`，修改后执行 `node scripts/build-local-config.mjs`，CI 检查同步。
 
-默认自动导出按现有模板生成适用的请求书、权利要求书、说明书、摘要；已有正式附图时附说明书附图和摘要附图，申请类型/选项需要时附其他文书。缺少的技术附图不会伪造，写入待补清单。ZIP 同时包含 AI 整理依据和 JSON 备份。Word 打包失败可保留 AI 结果重新打包，不再次调用 API。
+本机仅监听回环地址；请求检查 Host、Origin 和每次启动生成的访问令牌。CLI 强制 ChatGPT 登录，移除 API 环境变量，在独立临时目录以只读模式运行，关闭工具调用及用户规则。不复制或返回 Codex 登录凭据。
 
-429 分类依据：[OpenAI 错误码](https://developers.openai.com/api/docs/guides/error-codes)。旧版没有保留具体错误体，不能仅根据旧截图追溯某次 429 的确切原因。
+官方说明：[Codex 登录方式](https://learn.chatgpt.com/docs/auth.md)、[非交互执行](https://learn.chatgpt.com/docs/non-interactive-mode.md)。
